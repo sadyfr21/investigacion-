@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vulnerabilidades Web: Inyección, XSS, Validación y Sesiones</title>
+
+  <!-- Fuente y colores -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg-0: #0f172a;        /* slate-900 */
+      --bg-1: #111827;        /* gray-900 */
+      --txt:  #e5e7eb;        /* gray-200 */
+      --muted:#9ca3af;        /* gray-400 */
+      --accent-1: #22d3ee;    /* cyan-400 */
+      --accent-2: #a78bfa;    /* violet-400 */
+      --accent-3: #f59e0b;    /* amber-500 */
+      --ok: #10b981;          /* emerald-500 */
+      --warn: #f59e0b;        /* amber */
+      --danger: #ef4444;      /* red */
+      --card: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 20px 50px rgba(0,0,0,0.35);
+      --radius: 14px;
+    }
+
+  
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      color: var(--txt);
+      background:
+        radial-gradient(1200px 800px at 10% 10%, rgba(34,211,238,0.15), transparent 60%),
+        radial-gradient(1000px 700px at 90% 30%, rgba(167,139,250,0.14), transparent 65%),
+        linear-gradient(135deg, var(--bg-0), var(--bg-1));
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .glow-ring{
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(600px 300px at var(--mx) var(--my), rgba(34,211,238,0.18), transparent 70%);
+      opacity: 0.75;
+      transition: opacity .3s ease;
+    }
+    @media (prefers-reduced-motion: reduce){
+      .glow-ring{ display:none; }
+    }
+
+    header{
+      padding: 64px 24px 24px;
+      text-align: center;
+    }
+    .title{
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      font-size: clamp(1.8rem, 3.5vw, 3rem);
+      background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 10px;
+    }
+    .subtitle{
+      color: var(--muted);
+      font-size: clamp(0.95rem, 2.3vw, 1.15rem);
+      max-width: 920px;
+      margin: 0 auto 24px auto;
+    }
+
+    .tag-row{
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .tag{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--txt);
+    }
+
+    .container{
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+   
+    .grid{
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+    .card{
+      grid-column: span 12;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+      isolation: isolate;
+    }
+    @media (min-width: 800px){
+      .card{
+        grid-column: span 6;
+      }
+    }
+
+    .card::before{
+      content:"";
+      position:absolute;
+      inset: -1px;
+      border-radius: inherit;
+      background: linear-gradient(120deg, rgba(34,211,238,0.25), rgba(167,139,250,0.25), transparent 60%);
+      opacity: 0;
+      transition: opacity .35s ease;
+      z-index: -1;
+    }
+    .card:hover::before{ opacity: 1; }
+
+    .card-head{
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px 6px 20px;
+    }
+    .icon{
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(34,211,238,0.25), rgba(167,139,250,0.25));
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 800;
+      font-size: 1.05rem;
+      transform: translateY(4px);
+    }
+    .card-title{
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: -0.01em;
+    }
+    .card-body{
+      padding: 6px 20px 20px 20px;
+      color: var(--txt);
+    }
+    .lead{
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* Callouts */
+    .callouts{
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 14px 0;
+    }
+    .callout{
+      border-left: 4px solid var(--accent-1);
+      background: rgba(255,255,255,0.04);
+      padding: 10px 12px;
+      border-radius: 8px;
+    }
+    .callout.warn{ border-color: var(--warn); }
+    .callout.danger{ border-color: var(--danger); }
+    .callout.ok{ border-color: var(--ok); }
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.92rem;
+      color: #d1d5db;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 10px 12px;
+      overflow-x: auto;
+    }
+
+    /* Animación de entrada */
+    .reveal{
+      opacity: 0;
+      transform: translateY(16px) scale(0.98);
+      animation: reveal .7s ease forwards;
+    }
+    .reveal:nth-child(1){ animation-delay: .08s; }
+    .reveal:nth-child(2){ animation-delay: .16s; }
+    .reveal:nth-child(3){ animation-delay: .24s; }
+    .reveal:nth-child(4){ animation-delay: .32s; }
+    @keyframes reveal{
+      to{ opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce){
+      .reveal{ opacity: 1; transform: none; animation: none; }
+    }
+
+    /* Footer */
+    footer{
+      padding: 28px 24px 60px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .small{
+      font-size: 0.9rem;
+    }
+
+    /* Tabla simple */
+    table{
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 6px;
+    }
+    th, td{
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th{
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    /* Botones chips */
+    .chips{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 10px 0 4px;
+    }
+    .chip{
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 600;
+      color: var(--txt);
+      transition: transform .2s ease, background .2s ease;
+      cursor: default;
+    }
+    .chip:hover{ transform: translateY(-2px); background: rgba(255,255,255,0.1); }
+  </style>
+</head>
+
+<body>
+  <div class="glow-ring" aria-hidden="true"></div>
+
+  <header>
+    <h1 class="title">Vulnerabilidades web clave</h1>
+    <p class="subtitle">Una guía visual para comprender y prevenir Inyección en base de datos, XSS, fallos de validación y manejo inseguro de sesiones, con ejemplos seguros y recomendaciones prácticas.</p>
+    <div class="tag-row" role="list" aria-label="Temas">
+      <span class="tag">Inyección data base</span>
+      <span class="tag">XSS</span>
+      <span class="tag">Fallos de validación</span>
+      <span class="tag">Sesiones inseguras</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+
+      <!-- Inyección en base de datos -->
+      <article class="card reveal" id="inyeccion">
+        <div class="card-head">
+          <div class="icon">SQL</div>
+          <div class="card-title">Inyección en base de datos</div>
+        </div>
+        <div class="card-body">
+          <p class="lead">Ocurre cuando entradas del usuario se concatenan directamente en consultas, permitiendo alterar la lógica SQL. Prioriza consultas preparadas y validación estricta.</p>
+
+          <div class="callouts">
+            <div class="callout danger">
+              <strong>Riesgo:</strong> Exfiltración de datos, bypass de autenticación y borrado de tablas.
+            </div>
+            <div class="callout ok">
+              <strong>Prevención:</strong> Usa consultas parametrizadas, mapea tipos, aplica mínimos privilegios y registra intentos anómalos.
+            </div>
+          </div>
+
+          <div class="chips" aria-label="Buenas prácticas de SQL">
+            <span class="chip">Consultas preparadas</span>
+            <span class="chip">Valida tipos</span>
+            <span class="chip">Principio de menor privilegio</span>
+            <span class="chip">Escapa identificadores</span>
+          </div>
+
+          <div class="mono" aria-label="Ejemplo seguro (pseudocódigo)">
+SELECT * FROM usuarios WHERE email = ? AND estado = ?
+-- Parámetros: ["sady@example.com", "activo"]
+
+-- En vez de concatenar:
+-- SELECT * FROM usuarios WHERE email = '" + email + "' AND estado = '" + estado + "'";
+          </div>
+
+          <table aria-label="Checklist SQL segura">
+            <thead>
+              <tr>
+                <th>Medida</th>
+                <th>Por qué ayuda</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Parámetros tipados</td>
+                <td>Evitan que datos se interpreten como código.</td>
+              </tr>
+              <tr>
+                <td>ORM/Query builders</td>
+                <td>Promueven patrones seguros por defecto.</td>
+              </tr>
+              <tr>
+                <td>Roles y permisos</td>
+                <td>Limita el impacto si ocurre un ataque.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- XSS -->
+      <article class="card reveal" id="xss">
+        <div class="card-head">
+          <div class="icon">XSS</div>
+          <div class="card-title">Cross-Site Scripting (XSS)</div>
+        </div>
+        <div class="card-body">
+          <p class="lead">XSS inyecta scripts en contenido confiado. Se mitiga con codificación contextual, CSP y evitando innerHTML con datos crudos.</p>
+
+          <div class="callouts">
+            <div class="callout warn">
+              <strong>Riesgo:</strong> Robo de sesiones, defacement y ejecución de acciones sin permiso.
+            </div>
+            <div class="callout ok">
+              <strong>Prevención:</strong> Escapa salida según contexto (HTML/atributo/URL/JS), habilita Content Security Policy y sanitiza entradas.
+            </div>
+          </div>
+
+          <div class="chips" aria-label="Buenas prácticas contra XSS">
+            <span class="chip">Output encoding contextual</span>
+            <span class="chip">CSP estricta</span>
+            <span class="chip">No usar innerHTML con datos</span>
+            <span class="chip">Librerías de sanitización</span>
+          </div>
+
+          <div class="mono" aria-label="Ejemplo de render seguro en frontend">
+<!-- Evita: element.innerHTML = userInput -->
+const text = document.createTextNode(userInput);
+element.replaceChildren(text);
+
+// CSP ejemplo (meta):
+// <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'">
+          </div>
+
+          <table aria-label="Tipos de XSS">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Descripción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Reflejado</td>
+                <td>Se ejecuta al devolver directamente lo que el usuario envía.</td>
+              </tr>
+              <tr>
+                <td>Almacenado</td>
+                <td>Se guarda en la base de datos y afecta a múltiples usuarios.</td>
+              </tr>
+              <tr>
+                <td>DOM-based</td>
+                <td>Surge de manipulación insegura del DOM en el navegador.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- Fallos de validación -->
+      <article class="card reveal" id="validacion">
+        <div class="card-head">
+          <div class="icon">VAL</div>
+          <div class="card-title">Fallos de validación</div>
+        </div>
+        <div class="card-body">
+          <p class="lead">Cuando se confía solo en la validación del lado cliente, los datos maliciosos alcanzan el backend. Siempre valida en servidor y normaliza formatos.</p>
+
+          <div class="callouts">
+            <div class="callout danger">
+              <strong>Riesgo:</strong> Inyecciones, desbordes, lógica rota y datos corruptos.
+            </div>
+            <div class="callout ok">
+              <strong>Prevención:</strong> Validación en servidor, listas blancas, límites de tamaño y tipos estrictos.
+            </div>
+          </div>
+
+          <div class="chips" aria-label="Buenas prácticas de validación">
+            <span class="chip">Lista blanca</span>
+            <span class="chip">Normalizar input</span>
+            <span class="chip">Rate limiting</span>
+            <span class="chip">Esquemas (JSON/XML)</span>
+          </div>
+
+          <div class="mono" aria-label="Ejemplo de esquema (pseudocódigo)">
+schema Usuario {
+  email: string (formato email, máx 254)
+  nombre: string (A–Z y espacios, 1–80)
+  edad: number (entero, 18–120)
+}
+-- Valida en servidor; el cliente es complementario, no suficiente.
+          </div>
+
+          <table aria-label="Checklist de validación robusta">
+            <thead>
+              <tr>
+                <th>Medida</th>
+                <th>Implementación</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Límites de tamaño</td>
+                <td>Rechaza payloads excesivos y archivos grandes.</td>
+              </tr>
+              <tr>
+                <td>Normalización</td>
+                <td>Trim, lower/upper, Unicode seguro (NFC/NFKC).</td>
+              </tr>
+              <tr>
+                <td>Lista blanca</td>
+                <td>Acepta solo lo esperado; rechaza lo demás.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- Manejo inseguro de sesiones -->
+      <article class="card reveal" id="sesiones">
+        <div class="card-head">
+          <div class="icon">SESS</div>
+          <div class="card-title">Manejo inseguro de sesiones</div>
+        </div>
+        <div class="card-body">
+          <p class="lead">Las sesiones débiles permiten secuestro de cuentas. Fortalece tokens, cookies y flujos de autenticación, y usa HTTPS siempre.</p>
+
+          <div class="callouts">
+            <div class="callout warn">
+              <strong>Riesgo:</strong> Hijacking, fijación de sesión y escalación de privilegios.
+            </div>
+            <div class="callout ok">
+              <strong>Prevención:</strong> Cookies HttpOnly, Secure, SameSite; rotación tras login; expiración corta y revocación.
+            </div>
+          </div>
+
+          <div class="chips" aria-label="Buenas prácticas de sesión">
+            <span class="chip">HTTPS obligatorio</span>
+            <span class="chip">HttpOnly + Secure</span>
+            <span class="chip">SameSite=strict</span>
+            <span class="chip">Rotación de IDs</span>
+          </div>
+
+          <div class="mono" aria-label="Ajustes seguros de cookie (pseudocódigo)">
+Set-Cookie: sessionId=abc123;
+  HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=1800
+-- Rotar sessionId después de autenticación exitosa y al cambiar privilegios.
+          </div>
+
+          <table aria-label="Checklist de sesiones seguras">
+            <thead>
+              <tr>
+                <th>Medida</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Rotación</td>
+                <td>Nuevo ID tras login y cambios críticos.</td>
+              </tr>
+              <tr>
+                <td>Tiempo de vida</td>
+                <td>Expira por inactividad y absoluta.</td>
+              </tr>
+              <tr>
+                <td>Protección CSRF</td>
+                <td>Tokens por solicitud y SameSite.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+    </section>
+  </main>
+
+  <footer>
+    <p class="small">Este recurso prioriza la prevención con ejemplos seguros y animaciones sutiles. Adáptalo a tus proyectos educativos o profesionales.</p>
+  </footer>
+
+  <script>
+    // Animación reactiva a la posición del mouse para el glow del fondo.
+    // No afecta accesibilidad y respeta reduce-motion.
+    (function(){
+      const ring = document.querySelector('.glow-ring');
+      if(!ring) return;
+      let x = window.innerWidth/2, y = window.innerHeight/2;
+
+      const update = (e)=>{
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if(prefersReduced){ ring.style.opacity = 0; return; }
+        x = e.clientX; y = e.clientY;
+        ring.style.setProperty('--mx', x+'px');
+        ring.style.setProperty('--my', y+'px');
+      };
+      window.addEventListener('mousemove', update, { passive: true });
+      window.addEventListener('touchmove', (e)=>{
+        const t = e.touches[0]; if(!t) return;
+        update({ clientX: t.clientX, clientY: t.clientY });
+      }, { passive: true });
+    })();
+  </script>
+</body>
+</html>
